@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Analytics & Proyección - Estilo Power BI</title>
+    <!-- Configuración PWA -->
+    link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2933/2933116.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body class="bg-slate-100 text-slate-800 font-sans antialiased">
+
+    <!-- ==================== LOGIN ==================== -->
+    <div id="login-screen" class="min-h-screen flex items-center justify-center p-4 bg-slate-900">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm border-t-4 border-amber-500">
+            <div class="mb-6">
+                <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Finance BI</span>
+                <h1 class="text-2xl font-bold text-slate-900">Iniciar Sesión</h1>
+                <p class="text-xs text-slate-500 mt-1">Control de gastos y proyección de sueldo</p>
+            </div>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Usuario</label>
+                    <input type="text" id="username" value="admin" required
+                        class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Contraseña</label>
+                    <input type="password" id="password" value="1234" required
+                        class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-amber-500" />
+                </div>
+                <button type="submit"
+                    class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg text-sm transition">
+                    Entrar al Dashboard
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== DASHBOARD POWER BI ==================== -->
+    <div id="app-screen" class="hidden min-h-screen pb-12">
+
+        <!-- Barra Superior -->
+        <header class="bg-slate-900 text-white sticky top-0 z-20 shadow-md">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-6 bg-amber-400 rounded-sm"></div>
+                    <div>
+                        <h1 class="text-sm md:text-base font-bold tracking-tight">Finanzas & Proyección Mensual</h1>
+                        <p class="text-[11px] text-slate-400" id="welcome-user">Usuario: Admin</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="toggleModal()"
+                        class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-3 py-2 rounded-lg shadow">
+                        + Nuevo Gasto
+                    </button>
+                    <button onclick="logout()" class="text-xs text-slate-300 hover:text-white px-2 py-2">
+                        Salir
+                    </button>
+                </div>
+            </div>
+
+            <!-- Barra de Filtros (Slicers) -->
+            <div class="bg-slate-800 border-t border-slate-700 px-4 py-2 overflow-x-auto">
+                <div class="max-w-7xl mx-auto flex items-center gap-2 text-xs whitespace-nowrap" id="slicer-bar">
+                    <!-- Botones dinámicos -->
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 mt-5 space-y-5">
+
+            <!-- FILA 1: 4 TARJETAS KPI (Sueldo, Gastado, Saldo Actual, Proyección Fin de Mes) -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+
+                <!-- KPI 1: Sueldo Mensual -->
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-emerald-600">
+                    <div class="flex justify-between items-center">
+                        <p class="text-[11px] font-bold text-slate-400 uppercase">Sueldo Mensual</p>
+                        <button onclick="editSalary()"
+                            class="text-[10px] text-blue-600 font-bold hover:underline">Editar</button>
+                    </div>
+                    <p class="text-xl md:text-2xl font-extrabold text-slate-900 mt-1" id="kpi-salary">3,500.00</p>
+                    <p class="text-[11px] text-emerald-600 font-medium mt-1" id="kpi-daily-limit">Tope ideal: 116.67 /
+                        día</p>
+                </div>
+
+                <!-- KPI 2: Total Gastado -->
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-slate-800">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase">Gasto Acumulado</p>
+                    <p class="text-xl md:text-2xl font-extrabold text-slate-900 mt-1" id="kpi-total">0.00</p>
+                    <div class="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                        <div id="salary-bar" class="bg-slate-800 h-1.5 transition-all duration-300" style="width: 0%">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI 3: Saldo Disponible Hoy -->
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-600">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase">Saldo Disponible Hoy</p>
+                    <p class="text-xl md:text-2xl font-extrabold text-blue-600 mt-1" id="kpi-remaining">3,500.00</p>
+                    <p class="text-[11px] text-slate-500 mt-1" id="kpi-pct-left">100% de tu sueldo libre</p>
+                </div>
+
+                <!-- KPI 4: Proyección Ahorro Fin de Mes -->
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-amber-500">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase">Proyección Fin de Mes</p>
+                    <p class="text-xl md:text-2xl font-extrabold text-slate-900 mt-1" id="kpi-projected-savings">0.00
+                    </p>
+                    <p class="text-[11px] font-semibold mt-1" id="kpi-projection-status">Calculando ritmo...</p>
+                </div>
+
+            </div>
+
+            <!-- FILA 2: GRÁFICO DE PROYECCIÓN FIN DE MES + RANKING -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                <!-- Gráfico de Proyección Acumulada (Estilo Power BI Forecast) -->
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 lg:col-span-2">
+                    <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+                        <div>
+                            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700">Proyección de Gasto
+                                vs. Sueldo (30 días)</h2>
+                            <p class="text-[11px] text-slate-400">Línea sólida: Gasto real | Línea punteada: Estimación
+                                al cierre de mes</p>
+                        </div>
+                        <span id="burn-rate-badge"
+                            class="text-[11px] font-bold bg-amber-100 text-amber-800 px-2.5 py-1 rounded">
+                            Ritmo: 0.00 / día
+                        </span>
+                    </div>
+                    <div class="relative h-64 w-full">
+                        <canvas id="projectionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico de Barras Horizontales: Ranking por Categoría -->
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700">Gasto por Categoría</h2>
+                        <span class="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded">Ranking</span>
+                    </div>
+                    <div class="relative h-64 w-full">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- FILA 3: DONA + TABLA DE MOVIMIENTOS -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                <!-- Gráfico de Dona -->
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3">Distribución del Sueldo
+                    </h2>
+                    <div class="relative h-56 w-full flex items-center justify-center">
+                        <canvas id="doughnutChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Tabla de Movimientos -->
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 lg:col-span-2 flex flex-col">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700">Detalle de Movimientos
+                        </h2>
+                        <button onclick="clearAll()" class="text-xs text-red-500 hover:underline">Limpiar datos</button>
+                    </div>
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b-2 border-slate-200 text-[11px] font-bold text-slate-500 uppercase">
+                                    <th class="py-2 px-2">Fecha</th>
+                                    <th class="py-2 px-2">Descripción</th>
+                                    <th class="py-2 px-2">Categoría</th>
+                                    <th class="py-2 px-2 text-right">Monto</th>
+                                    <th class="py-2 px-1"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="expense-table" class="divide-y divide-slate-100 text-xs">
+                                <!-- Filas dinámicas -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ==================== MODAL PARA AGREGAR GASTO ==================== -->
+    <div id="expense-modal" class="hidden fixed inset-0 bg-slate-900/60 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-base font-bold text-slate-900">Registrar Nuevo Gasto</h3>
+                <button onclick="toggleModal()" class="text-slate-400 hover:text-slate-700 text-lg">✕</button>
+            </div>
+            <form id="expense-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Descripción</label>
+                    <input type="text" id="desc" placeholder="Ej. Alquiler, Supermercado, Luz..." required
+                        class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-amber-500" />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Monto</label>
+                        <input type="number" id="amount" step="0.01" min="0.01" placeholder="0.00" required
+                            class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-amber-500" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Categoría</label>
+                        <select id="category"
+                            class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:border-amber-500">
+                            <option value="Vivienda">Vivienda</option>
+                            <option value="Comida">Comida</option>
+                            <option value="Transporte">Transporte</option>
+                            <option value="Servicios">Servicios</option>
+                            <option value="Ocio">Ocio</option>
+                            <option value="Salud">Salud</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Fecha</label>
+                    <input type="date" id="date" required
+                        class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-amber-500" />
+                </div>
+                <button type="submit"
+                    class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-2.5 rounded-lg text-sm transition">
+                    Guardar Registro
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== LÓGICA JAVASCRIPT ==================== -->
+    <script>
+        // Datos iniciales realistas para un sueldo de 3,500
+        const defaultData = [
+            { id: 1, desc: 'Alquiler / Hipoteca', amount: 950.00, category: 'Vivienda', date: '2026-11-01' },
+            { id: 2, desc: 'Supermercado quincenal', amount: 320.00, category: 'Comida', date: '2026-11-04' },
+            { id: 3, desc: 'Luz, Agua e Internet', amount: 180.00, category: 'Servicios', date: '2026-11-08' },
+            { id: 4, desc: 'Movilidad / Gasolina', amount: 140.00, category: 'Transporte', date: '2026-11-12' },
+            { id: 5, desc: 'Salida fin de semana', amount: 120.00, category: 'Ocio', date: '2026-11-16' },
+            { id: 6, desc: 'Compras mercado', amount: 210.00, category: 'Comida', date: '2026-11-21' }
+        ];
+
+        let expenses = JSON.parse(localStorage.getItem('bi_expenses_v2')) || defaultData;
+        let salary = parseFloat(localStorage.getItem('bi_salary')) || 3500;
+        let activeFilter = 'Todas';
+
+        let projectionChart, barChart, doughnutChart;
+
+        document.getElementById('date').valueAsDate = new Date();
+
+        // --- LOGIN ---
+        function checkAuth() {
+            const user = localStorage.getItem('bi_user');
+            if (user) {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('app-screen').classList.remove('hidden');
+                document.getElementById('welcome-user').textContent = `Usuario: ${user}`;
+                renderDashboard();
+            } else {
+                document.getElementById('login-screen').classList.remove('hidden');
+                document.getElementById('app-screen').classList.add('hidden');
+            }
+        }
+
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            localStorage.setItem('bi_user', document.getElementById('username').value);
+            checkAuth();
+        });
+
+        function logout() {
+            localStorage.removeItem('bi_user');
+            checkAuth();
+        }
+
+        function toggleModal() {
+            document.getElementById('expense-modal').classList.toggle('hidden');
+        }
+
+        // --- ACCIONES ---
+        document.getElementById('expense-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            expenses.push({
+                id: Date.now(),
+                desc: document.getElementById('desc').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                category: document.getElementById('category').value,
+                date: document.getElementById('date').value
+            });
+            localStorage.setItem('bi_expenses_v2', JSON.stringify(expenses));
+            e.target.reset();
+            document.getElementById('date').valueAsDate = new Date();
+            toggleModal();
+            renderDashboard();
+        });
+
+        function deleteExpense(id) {
+            expenses = expenses.filter(e => e.id !== id);
+            localStorage.setItem('bi_expenses_v2', JSON.stringify(expenses));
+            renderDashboard();
+        }
+
+        function clearAll() {
+            if (confirm('¿Borrar todos los gastos registrados?')) {
+                expenses = [];
+                localStorage.setItem('bi_expenses_v2', JSON.stringify(expenses));
+                renderDashboard();
+            }
+        }
+
+        function editSalary() {
+            const val = prompt('Ingresa tu sueldo mensual:', salary);
+            if (val && !isNaN(val) && parseFloat(val) > 0) {
+                salary = parseFloat(val);
+                localStorage.setItem('bi_salary', salary);
+                renderDashboard();
+            }
+        }
+
+        function setFilter(cat) {
+            activeFilter = cat;
+            renderDashboard();
+        }
+
+        // Formato de moneda limpio
+        const fmt = (num) => num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        // --- CÁLCULO Y RENDERIZADO ---
+        function renderDashboard() {
+            // 1. Slicers
+            const categories = ['Todas', 'Vivienda', 'Comida', 'Transporte', 'Servicios', 'Ocio', 'Salud', 'Otros'];
+            const slicerBar = document.getElementById('slicer-bar');
+            slicerBar.innerHTML = '<span class="text-slate-400 font-semibold mr-1">Filtrar:</span>';
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.textContent = cat;
+                btn.onclick = () => setFilter(cat);
+                btn.className = `px-3 py-1 rounded-md font-medium transition ${activeFilter === cat ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`;
+                slicerBar.appendChild(btn);
+            });
+
+            const filtered = activeFilter === 'Todas' ? expenses : expenses.filter(e => e.category === activeFilter);
+            const totalSpent = filtered.reduce((acc, item) => acc + item.amount, 0);
+            const remaining = salary - totalSpent;
+
+            // 2. Lógica de Proyección (basada en el día actual del mes, ej. día 24 de 30)
+            const today = new Date();
+            const currentDay = today.getDate(); // Día del mes (1 al 31)
+            const daysInMonth = 30;
+            const dailyAvg = currentDay > 0 ? totalSpent / currentDay : 0;
+            const projectedTotalSpend = dailyAvg * daysInMonth;
+            const projectedSavings = salary - projectedTotalSpend;
+
+            // 3. Actualizar KPIs
+            document.getElementById('kpi-salary').textContent = fmt(salary);
+            document.getElementById('kpi-daily-limit').textContent = `Tope ideal: ${fmt(salary / 30)} / día`;
+
+            document.getElementById('kpi-total').textContent = fmt(totalSpent);
+            const pctSpent = Math.min((totalSpent / salary) * 100, 100);
+            const barEl = document.getElementById('salary-bar');
+            barEl.style.width = `${pctSpent}%`;
+            barEl.className = `h-1.5 transition-all duration-300 ${pctSpent > 85 ? 'bg-red-500' : 'bg-slate-800'}`;
+
+            const remEl = document.getElementById('kpi-remaining');
+            remEl.textContent = fmt(remaining);
+            remEl.className = `text-xl md:text-2xl font-extrabold mt-1 ${remaining < 0 ? 'text-red-600' : 'text-blue-600'}`;
+            document.getElementById('kpi-pct-left').textContent = `${Math.max(0, (100 - (totalSpent / salary) * 100)).toFixed(0)}% de tu sueldo libre`;
+
+            // KPI Proyección Fin de Mes
+            const projEl = document.getElementById('kpi-projected-savings');
+            const statusEl = document.getElementById('kpi-projection-status');
+
+            if (projectedSavings >= 0) {
+                projEl.textContent = `+${fmt(projectedSavings)}`;
+                projEl.className = 'text-xl md:text-2xl font-extrabold text-emerald-600 mt-1';
+                statusEl.textContent = `Ahorro estimado al día 30`;
+                statusEl.className = 'text-[11px] font-semibold text-emerald-600 mt-1';
+            } else {
+                projEl.textContent = `${fmt(projectedSavings)}`;
+                projEl.className = 'text-xl md:text-2xl font-extrabold text-red-600 mt-1';
+                statusEl.textContent = `Alerta: Excederías tu sueldo`;
+                statusEl.className = 'text-[11px] font-semibold text-red-600 mt-1';
+            }
+
+            document.getElementById('burn-rate-badge').textContent = `Ritmo actual: ${fmt(dailyAvg)} / día`;
+
+            // 4. Tabla de movimientos
+            const tbody = document.getElementById('expense-table');
+            tbody.innerHTML = '';
+            const sortedByDate = [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (sortedByDate.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-slate-400">Sin movimientos</td></tr>';
+            } else {
+                sortedByDate.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50';
+                    tr.innerHTML = `
+            <td class="py-2.5 px-2 text-slate-500 whitespace-nowrap">${item.date}</td>
+            <td class="py-2.5 px-2 font-semibold text-slate-800">${item.desc}</td>
+            <td class="py-2.5 px-2"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[11px]">${item.category}</span></td>
+            <td class="py-2.5 px-2 text-right font-bold text-slate-900">${fmt(item.amount)}</td>
+            <td class="py-2.5 px-1 text-right"><button onclick="deleteExpense(${item.id})" class="text-slate-400 hover:text-red-600 font-bold">✕</button></td>
+          `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            // 5. Renderizar Gráficos
+            renderCharts(filtered, currentDay, totalSpent, dailyAvg);
+        }
+
+        function renderCharts(filtered, currentDay, totalSpent, dailyAvg) {
+            // --- A. GRÁFICO DE PROYECCIÓN ACUMULADA (Días 1 al 30) ---
+            const labelsDays = Array.from({ length: 30 }, (_, i) => `Día ${i + 1}`);
+            const actualCumulative = [];
+            const projectedCumulative = [];
+            const salaryLine = Array(30).fill(salary);
+
+            // Mapear gastos reales por día del mes
+            const spendByDay = {};
+            filtered.forEach(item => {
+                const d = parseInt(item.date.split('-')[2], 10);
+                if (d >= 1 && d <= 30) {
+                    spendByDay[d] = (spendByDay[d] || 0) + item.amount;
+                }
+            });
+
+            let runningTotal = 0;
+            for (let d = 1; d <= 30; d++) {
+                if (d <= currentDay) {
+                    runningTotal += (spendByDay[d] || 0);
+                    actualCumulative.push(runningTotal);
+                    projectedCumulative.push(d === currentDay ? runningTotal : null);
+                } else {
+                    actualCumulative.push(null);
+                    const daysAhead = d - currentDay;
+                    projectedCumulative.push(runningTotal + (dailyAvg * daysAhead));
+                }
+            }
+
+            if (projectionChart) projectionChart.destroy();
+            projectionChart = new Chart(document.getElementById('projectionChart'), {
+                type: 'line',
+                data: {
+                    labels: labelsDays,
+                    datasets: [
+                        {
+                            label: 'Gasto Real Acumulado',
+                            data: actualCumulative,
+                            borderColor: '#0f172a',
+                            backgroundColor: 'rgba(15, 23, 42, 0.08)',
+                            borderWidth: 2.5,
+                            fill: true,
+                            tension: 0.2,
+                            pointRadius: 2
+                        },
+                        {
+                            label: 'Proyección Fin de Mes',
+                            data: projectedCumulative,
+                            borderColor: '#f59e0b',
+                            borderDash: [6, 6],
+                            borderWidth: 2.5,
+                            fill: false,
+                            tension: 0.1,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Tope Sueldo (' + fmt(salary) + ')',
+                            data: salaryLine,
+                            borderColor: '#ef4444',
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+                        x: { grid: { display: false }, ticks: { maxTicksLimit: 10, font: { size: 10 } } }
+                    }
+                }
+            });
+
+            // --- B. RANKING POR CATEGORÍA ---
+            const byCat = {};
+            filtered.forEach(item => { byCat[item.category] = (byCat[item.category] || 0) + item.amount; });
+            const sortedCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+
+            if (barChart) barChart.destroy();
+            barChart = new Chart(document.getElementById('barChart'), {
+                type: 'bar',
+                data: {
+                    labels: sortedCats.map(c => c[0]),
+                    datasets: [{
+                        data: sortedCats.map(c => c[1]),
+                        backgroundColor: '#0f172a',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+                        y: { grid: { display: false }, ticks: { font: { size: 11, weight: 'bold' } } }
+                    }
+                }
+            });
+
+            // --- C. DONA: DISTRIBUCIÓN DEL SUELDO (Gastos vs Saldo Libre) ---
+            const freeMoney = Math.max(0, salary - totalSpent);
+            const donutLabels = [...sortedCats.map(c => c[0]), 'Sueldo Disponible'];
+            const donutData = [...sortedCats.map(c => c[1]), freeMoney];
+            const donutColors = ['#0f172a', '#f59e0b', '#2563eb', '#8b5cf6', '#ec4899', '#64748b', '#10b981'];
+
+            if (doughnutChart) doughnutChart.destroy();
+            doughnutChart = new Chart(document.getElementById('doughnutChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: donutLabels,
+                    datasets: [{
+                        data: donutData,
+                        backgroundColor: donutColors,
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        checkAuth();
+        // Registrar Service Worker para PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('PWA lista'))
+                .catch((err) => console.error('Error PWA:', err));
+        }
+    </script>
+</body>
+
+</html>s
