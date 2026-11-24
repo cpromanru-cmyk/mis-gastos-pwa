@@ -6,13 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Analytics & Proyección - Estilo Power BI</title>
     <!-- Configuración PWA -->
-
+    <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2933/2933116.png" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body class="bg-slate-100 text-slate-800 font-sans antialiased">
@@ -245,20 +246,14 @@
 
     <!-- ==================== LÓGICA JAVASCRIPT ==================== -->
     <script>
-        // Datos iniciales realistas para un sueldo de 3,500
-        const defaultData = [
-            { id: 1, desc: 'Alquiler / Hipoteca', amount: 950.00, category: 'Vivienda', date: '2026-11-01' },
-            { id: 2, desc: 'Supermercado quincenal', amount: 320.00, category: 'Comida', date: '2026-11-04' },
-            { id: 3, desc: 'Luz, Agua e Internet', amount: 180.00, category: 'Servicios', date: '2026-11-08' },
-            { id: 4, desc: 'Movilidad / Gasolina', amount: 140.00, category: 'Transporte', date: '2026-11-12' },
-            { id: 5, desc: 'Salida fin de semana', amount: 120.00, category: 'Ocio', date: '2026-11-16' },
-            { id: 6, desc: 'Compras mercado', amount: 210.00, category: 'Comida', date: '2026-11-21' }
-        ];
+        // 1. CONEXIÓN A SUPABASE
+        const SUPABASE_URL = 'https://zxjctenaxqhosxeuqrxl.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_deLxambtyjoS5tE2elApsQ_l1WugKqy';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let expenses = JSON.parse(localStorage.getItem('bi_expenses_v2')) || defaultData;
+        let expenses = [];
         let salary = parseFloat(localStorage.getItem('bi_salary')) || 3500;
         let activeFilter = 'Todas';
-
         let projectionChart, barChart, doughnutChart;
 
         document.getElementById('date').valueAsDate = new Date();
@@ -270,7 +265,7 @@
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('app-screen').classList.remove('hidden');
                 document.getElementById('welcome-user').textContent = `Usuario: ${user}`;
-                renderDashboard();
+                loadExpenses();
             } else {
                 document.getElementById('login-screen').classList.remove('hidden');
                 document.getElementById('app-screen').classList.add('hidden');
@@ -292,34 +287,57 @@
             document.getElementById('expense-modal').classList.toggle('hidden');
         }
 
-        // --- ACCIONES ---
-        document.getElementById('expense-form').addEventListener('submit', (e) => {
+        // --- CARGAR Y ESCUCHAR EN TIEMPO REAL DESDE SUPABASE ---
+        async function loadExpenses() {
+            const { data, error } = await supabaseClient
+                .from('gastos')
+                .select('*')
+                .order('date', { ascending: false });
+
+            if (!error && data) {
+                expenses = data;
+                renderDashboard();
+            }
+        }
+
+        supabaseClient
+            .channel('gastos-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos' }, () => {
+                loadExpenses();
+            })
+            .subscribe();
+
+        // --- ACCIONES EN SUPABASE ---
+        document.getElementById('expense-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            expenses.push({
-                id: Date.now(),
+            const newExpense = {
                 desc: document.getElementById('desc').value,
                 amount: parseFloat(document.getElementById('amount').value),
                 category: document.getElementById('category').value,
                 date: document.getElementById('date').value
-            });
-            localStorage.setItem('bi_expenses_v2', JSON.stringify(expenses));
-            e.target.reset();
-            document.getElementById('date').valueAsDate = new Date();
-            toggleModal();
-            renderDashboard();
+            };
+
+            const { error } = await supabaseClient.from('gastos').insert([newExpense]);
+
+            if (!error) {
+                e.target.reset();
+                document.getElementById('date').valueAsDate = new Date();
+                toggleModal();
+                loadExpenses();
+            } else {
+                alert('Error al guardar: ' + error.message);
+            }
         });
 
-        function deleteExpense(id) {
-            expenses = expenses.filter(e => e.id !== id);
-            localStorage.setItem('bi_expenses_v2', JSON.stringify(expenses));
-            renderDashboard();
+        async function deleteExpense(id) {
+            const { error } = await supabaseClient.from('gastos').delete().eq('id', id);
+            if (!error) loadExpenses();
         }
 
-        function clearAll() {
-            if (confirm('¿Borrar todos los gastos registrados?')) {
-                expenses = [];
-                localStorage.setItem('bi_expenses_v2', JSON.stringify(expenses));
-                renderDashboard();
+        async function clearAll() {
+            if (confirm('¿Borrar todos los gastos registrados en la nube?')) {
+                const { error } = await supabaseClient.from('gastos').delete().neq('id', 0);
+                if (!error) loadExpenses();
             }
         }
 
@@ -337,8 +355,7 @@
             renderDashboard();
         }
 
-        // Formato de moneda limpio
-        const fmt = (num) => num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmt = (num) => Number(num).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
         // --- CÁLCULO Y RENDERIZADO ---
         function renderDashboard() {
@@ -356,12 +373,12 @@
             });
 
             const filtered = activeFilter === 'Todas' ? expenses : expenses.filter(e => e.category === activeFilter);
-            const totalSpent = filtered.reduce((acc, item) => acc + item.amount, 0);
+            const totalSpent = filtered.reduce((acc, item) => acc + Number(item.amount), 0);
             const remaining = salary - totalSpent;
 
-            // 2. Lógica de Proyección (basada en el día actual del mes, ej. día 24 de 30)
+            // 2. Lógica de Proyección
             const today = new Date();
-            const currentDay = today.getDate(); // Día del mes (1 al 31)
+            const currentDay = today.getDate();
             const daysInMonth = 30;
             const dailyAvg = currentDay > 0 ? totalSpent / currentDay : 0;
             const projectedTotalSpend = dailyAvg * daysInMonth;
@@ -433,12 +450,11 @@
             const projectedCumulative = [];
             const salaryLine = Array(30).fill(salary);
 
-            // Mapear gastos reales por día del mes
             const spendByDay = {};
             filtered.forEach(item => {
                 const d = parseInt(item.date.split('-')[2], 10);
                 if (d >= 1 && d <= 30) {
-                    spendByDay[d] = (spendByDay[d] || 0) + item.amount;
+                    spendByDay[d] = (spendByDay[d] || 0) + Number(item.amount);
                 }
             });
 
@@ -507,7 +523,7 @@
 
             // --- B. RANKING POR CATEGORÍA ---
             const byCat = {};
-            filtered.forEach(item => { byCat[item.category] = (byCat[item.category] || 0) + item.amount; });
+            filtered.forEach(item => { byCat[item.category] = (byCat[item.category] || 0) + Number(item.amount); });
             const sortedCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
 
             if (barChart) barChart.destroy();
@@ -533,7 +549,7 @@
                 }
             });
 
-            // --- C. DONA: DISTRIBUCIÓN DEL SUELDO (Gastos vs Saldo Libre) ---
+            // --- C. DONA: DISTRIBUCIÓN DEL SUELDO ---
             const freeMoney = Math.max(0, salary - totalSpent);
             const donutLabels = [...sortedCats.map(c => c[0]), 'Sueldo Disponible'];
             const donutData = [...sortedCats.map(c => c[1]), freeMoney];
@@ -563,6 +579,7 @@
         }
 
         checkAuth();
+
         // Registrar Service Worker para PWA
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
@@ -572,4 +589,4 @@
     </script>
 </body>
 
-</html>s
+</html>
